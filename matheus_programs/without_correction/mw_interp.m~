@@ -1,0 +1,429 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% LOAD mw_thickness_vars ON /Users/matheusvcortezi/Dropbox/Mestrado/matheus_programs/without_correction
+% WE NEED TO INTERPOLATE SOME DATA TO FILL GAPS.
+% THE DATA WITHOUT GAPS WILL HAVE IT'S CORRELATION CALCULATED WITH THE OUTPUT FROM
+% 
+%
+%
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%% clearing variables
+clear all;
+close all;
+more('off');
+
+%%%% LOADING MW LAYER VARIABLES
+load mw_thickness_vars;
+load timeaxis;
+
+%-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+disp('1. finding NaNs...')
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+inmax = isnan(max_d);
+inmin = isnan(min_d);
+imax_d = max_d;
+imin_d = min_d;
+
+%-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.
+%-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+disp('2. Interp for dates with NaNs on trasport...')
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%%% SOME STATIONS HAVE DISCONTINUITIES ON DATA
+%%%% AND THERE'S NEED TO ELIMINATE THOSE GAPS FROM INTERPOLATIONS
+%%%% AND ALSO PREVENT EXTRAPOLATIONS
+
+%%% DAYS OF GAPS
+dgap = [733850 NaN NaN 735883; 733899 734219 734691 736278; 733851 NaN NaN 735879; 733852 735484 735579 735879];
+tgap = NaN.*dgap;
+
+%%% INDEXES OF GAPS, START AND END LIMITS;
+for i = 1:4
+	for j = 1:4;
+		if(~isnan(dgap(i,j)));
+			tgap(i,j) = find(timeaxis == dgap(i,j));
+		else;
+			tgap(i,j) = NaN;
+		end;
+	end;
+end;
+
+
+%%%% INTERP MAX_D
+for i = 1:4
+	nmax = find(inmax(:,i) == 1);
+	numax = find(inmax(:,i) == 0);
+	numax = numax(end);
+	nmax = nmax(nmax<=numax);
+
+	%%%% GAPS ON STATIONS B AND D
+	if( i == 2 | i == 4);
+		nmax = nmax(nmax >= tgap(i,1));
+		nmax = nmax(nmax <= tgap(i,4));
+		nmax = nmax(nmax <= tgap(i,2) & nmax >= tgap(i,3));
+	else;
+		nmax = nmax(nmax >= tgap(i,1));
+		nmax = nmax(nmax <= tgap(i,4));
+	end;
+
+	yy = spline(timeaxis(~isnan(max_d(:,i))),max_d(~isnan(max_d(:,i)),i),timeaxis(nmax));
+	imax_d(nmax,i) = yy;
+end;
+
+%%%% INTERP MIN_D
+for i = 1:4
+	nmin = find(inmin(:,i) == 1);
+	numin = find(inmin(:,i) == 0);
+	numin = numin(end);
+	nmin = nmin(nmin<=numin);
+
+	%%%% GAPS ON STATIONS B AND D
+	if( i == 2 | i == 4);
+		nmin = nmin(nmin >= tgap(i,1));
+		nmin = nmin(nmin <= tgap(i,4));
+		nmin = nmin(nmin <= tgap(i,2) & nmin >= tgap(i,3));
+	else;
+		nmin = nmin(nmin >= tgap(i,1));
+		nmin = nmin(nmin <= tgap(i,4));
+	end;
+
+	yy = spline(timeaxis(~isnan(min_d(:,i))),min_d(~isnan(min_d(:,i)),i),timeaxis(nmin));
+	imin_d(nmin,i) = yy;
+end;
+
+%%%% without interpolation
+figure(1)
+for i = 1:4;
+subtightplot(4,1,i,0.05,0.05,0.05);
+hold on;
+plot(timeaxis,max_d(:,i));
+plot(timeaxis,min_d(:,i));
+datetick('x','mmmyy');grid on;ylim([-200 600]);
+end;
+hold off;
+
+print -depsc2 mw_max_min_d.eps
+
+i_thick = imax_d - imin_d;
+
+%%%% interpolated
+figure(2)
+for i = 1:4
+subtightplot(4,1,i,0.05,0.05,0.05);
+hold on;
+plot(timeaxis,imax_d(:,i),'r','linewidth',2);
+plot(timeaxis,imin_d(:,i), 'b', 'linewidth', 2);
+%plot(timeaxis,i_thick(:,i), 'k', 'linewidth', 2);
+datetick('x','mmmyy');grid on;ylim([-200 600]);
+end;
+hold off;
+
+print -depsc2 mw_interp_max_min_d.eps
+
+figure(3)
+for i = 1:4
+subtightplot(4,1,i,0.05,0.05,0.05);
+hold on;
+plot(timeaxis,i_thick(:,i), 'ok', 'linewidth', 2);
+plot(timeaxis,thick(:,i), 'r', 'linewidth', 2);
+datetick('x','mmmyy');grid on;ylim([-200 600]);
+end;
+hold off;
+
+print -depsc2 mw_thick.eps
+
+save interp_mw_thick.mat imax_d imin_d i_thick
+
+%-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.
+%-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+disp('3. Resolution drop...')
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%close all;
+%clear all;
+
+%%%% WE SHOULD LOWER THE RESOLUTION TO MATCH THE ONE ON
+%%%% THE HYCOM DATA. 
+
+%%%% 2 METHODS MIGHT BE TESTED, FOR MEAN AND MEDIAN ALIKE.
+%%%% GROUP DAYS -BEFORE- THE HYCOM DATE, AND -AFTER- IT.
+
+%%%% LOAD HYCOM DATA 
+%% HYCOM TRANSPORT
+%load ~/Dropbox/Mestrado/Hycom/bc_transp
+load /Users/'Matheus Cortezi'/Dropbox/Mestrado/Hycom/bc_transp
+
+figure
+plot(date,V);datetick('x','mmmyy'); grid on; 
+
+
+%-.-.-.-.-.-.-.-.-.-.-.-.- FIX DATES -.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-
+%%%% THE HYCOM TRANSPORT AND THE PIES TIME SERIES DO NOT START AND END AT
+%%%% THE SAME POINT IN TIME. THIS HERE FIXES IT.
+
+%%%% LIMITS OF TIME VARIABLES
+ltv = [date(1)  date(end); timeaxis(1) timeaxis(end)];
+
+%%%% WE USE TIME STEPS OF 6 DAYS BECAUSE OF HYCOM
+%%%% SO WE NEED TO FIND THE FIRST VALUE ON date THAT 
+%%%% IS A DATE AT LEAST SIX DAYS
+
+
+%%%% start HAS THE FIRST VALUE WITHIN THE INTERVAL THAT COMPREHENDS PIES DATA
+start = find(date >= timeaxis(1));
+start = start(1);
+
+
+%%%% WE WILL CALCULATE MEAN 6-DAY VALUES WITH DIFFERENT METHODS PRESENTED BELOW
+%%%% FOR THAT WE NEED TO START AT DIFFERENT DAYS
+
+%-.-.-.-.-.-.-.-.- maybe trash -.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.
+%% STARTING POINT WHEN THE AVERAGE STARTS BEFORE THE DAY ON V
+%start_b = start - 6;
+
+%% STARTING POINT WHEN THE AVERAGE STARTS AFTER THE DAY ON V
+%start_a = start;
+%clear start;
+%-.-.-.-.-.-.-.-.- maybe trash -.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.
+
+%% ENDING POINT WHEN THE AVERAGE STARTS BEFORE THE DAY ON V
+ending = find(date <= timeaxis(end));
+ending = ending(end - 1);
+%start_b(2) = 424;           %% +6 FALLS OUT OF RANGE
+
+%% ENDING POINT WHEN THE AVERAGE STARTS AFTER THE DAY ON V
+%start_a(2) = ending; 
+%clear ending;
+
+%% NOW WE NEED THE VALUES FOR THOSE DATES, TO LIMIT timeaxis
+%tal = [date(start_b(1)) date(start_b(2)); date(start_a(1)) date(start_a(2))] 
+tl = [start ending];
+
+%%%% INDICES OF timeaxis DATES THAT ARE EQUAL TO date DATES
+for i = start:ending;      
+	a(i) = find(timeaxis == date(i));
+end;
+a = a(start:end);
+
+%-.-.-.-.-.-.-.-.-.-.-.-.- FIX DATES -.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-
+
+
+%-.-.-.-.-.-.-.-.-.-.-.-.- MEAN -.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+disp('3.1. Mean before date...')
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%%% MATCH DATES
+%Vmb = V(start_b(1):start_b(2));
+Vmb = V(start:ending);
+%timeb = timeaxis(start_b(1):start_b(2));
+timeb = date(start:ending);
+
+
+%%%% THE ACTUAL AVERAGE
+%cont = 1;
+for j = 1:4;
+	for i = 1:length(a)
+		if(i + 6 <= length(timeaxis))
+			%mbt_maxd(i,j) = nanmean(max_d(start_b(1)-1+i:start_b(1)+5+i,j)); 
+			mbt_maxd(i,j) = nanmean(max_d(a(i):5+a(i),j)); 
+			%mbt_mind(i,j) = nanmean(min_d(start_b(1)-1+i:start_b(1)+5+i,j)); 
+			mbt_mind(i,j) = nanmean(min_d(a(i):5+a(i),j)); 
+		end;
+	end;
+end;
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+disp('3.2. Mean after date...')
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%%% MATCH DATES
+Vma = V(start:ending);
+%Vma = V(start_a(1):start_a(2));
+%timea = timeaxis(start_a(1):start_a(2));
+%timea = date(start_a(1):start_a(2));
+timea = date(start:ending);
+
+%%%% THE ACTUAL AVERAGE
+cont = 1;
+for j = 1:4;
+	for i = 1:length(a)
+		if(i + 6 <= length(timeaxis))
+			%mat_maxd(i,j) = nanmean(max_d(start_a(1)-1+i:start_a(1)+5+i,j)); 
+			mat_maxd(i,j) = nanmean(max_d(a(i):5+a(i),j)); 
+			%mat_mind(i,j) = nanmean(min_d(start_a(1)-1+i:start_a(1)+5+i,j)); 
+			mat_mind(i,j) = nanmean(min_d(a(i):5+a(i),j)); 
+			cont = cont+1;
+		end;
+	end;
+end;
+
+%-.-.-.-.-.-.-.-.-.-.-.-.- MEAN -.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-
+
+%-.-.-.-.-.-.-.-.-.-.-.-.- MEDIAAN -.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+disp('3.3. Median before date...')
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+%%%% THE ACTUAL MEDIAN
+cont = 1;
+for j = 1:4;
+	for i = 1:length(a)
+		if(i + 6 <= length(timeaxis))
+			%mdbt_maxd(i,j) = nanmedian(max_d(start_b(1)-1+i:start_b(1)+5+i,j)); 
+			mdbt_maxd(i,j) = nanmedian(max_d(a(i):5+a(i),j)); 
+			%mdbt_mind(i,j) = nanmedian(min_d(start_b(1)-1+i:start_b(1)+5+i,j)); 
+			mdbt_mind(i,j) = nanmedian(min_d(a(i):5+a(i),j)); 
+			cont = cont+1;
+		end;
+	end;
+end;
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+disp('3.4. Median before date...')
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+%%%% THE ACTUAL MEDIAN
+cont = 1;
+for j = 1:4;
+	for i = 1:length(a)
+		if(i + 6 <= length(timeaxis))
+			%mdat_maxd(i,j) = nanmedian(max_d(start_a(1)-1+i:start_a(1)+5+i,j)); 
+			mdat_maxd(i,j) = nanmedian(max_d(a(i):5+a(i),j)); 
+			%mdat_mind(i,j) = nanmedian(min_d(start_a(1)-1+i:start_a(1)+5+i,j)); 
+			mdat_mind(i,j) = nanmedian(min_d(a(i):5+a(i),j)); 
+			cont = cont+1;
+		end;
+	end;
+end;
+
+%-.-.-.-.-.-.-.-.-.-.-.-.- MEDIAAN -.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+disp('4. Mw thickness...')
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+tmbt = mbt_maxd - mbt_mind;
+tmat = mat_maxd - mat_mind;
+tmdbt = mdbt_maxd - mdbt_mind;
+tmdat = mdat_maxd - mdat_mind;
+
+save mw_interp_vars.mat;
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+disp('5. Interp low res...')
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%%% SOME STATIONS HAVE DISCONTINUITIES ON DATA
+%%%% AND THERE'S NEED TO ELIMINATE THOSE GAPS FROM INTERPOLATIONS
+%%%% AND ALSO PREVENT EXTRAPOLATIONS
+
+
+
+%%%% THE ACTUAL INTERPOLATION
+%for i = 1:4
+%	%%%% TAKE NAN OUT FOR INTERPOLATION
+%	junk = mbt_maxd(~isnan(mbt_maxd(:,i)));
+%	timejunk = timeb(~isnan(mbt_maxd(:,i)));
+%	
+%	yy(:,i) = interp1(timejunk,junk,timeb,'linear');
+%end;
+
+%-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.- CORRELATION -.-.-.-.-.-.-.-.-.-.-.-.-.-
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+disp('6. Correlation...')
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+for i = 1:4
+%	[junk1(i) p1(i)] = corr(Vmb', tmbt(:,i))
+%	[junk2(i) p2(i)] = corr(Vma', tmat(:,i))
+%	[junk3(i) p3(i)] = corr(Vmb', tmdbt(:,i))
+%	[junk4(i) p4(i)] = corr(Vma', tmdat(:,i))
+	junk1(i) = xcorr(Vmb', squeeze(tmbt(:,i)))
+	junk2(i) = xcorr(Vma', squeeze(tmat(:,i)))
+	junk3(i) = xcorr(Vmb', squeeze(tmdbt(:,i)))
+	junk4(i) = xcorr(Vma', squeeze(tmdat(:,i)))
+end;
+
+
+
+%-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.- CORRELATION -.-.-.-.-.-.-.-.-.-.-.-.-.-
+
+%-.-.-.-.-.-.-.-.-.-.-.-.-.-.- PLOTS -.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+disp('7. Plots...')
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+figure(5)
+for i = 1:4;
+subtightplot(4,1,i,0.05,0.05,0.05);
+if(i ==1)
+	title('Mean before date')
+end;
+hold on;
+plot(timeb,mbt_maxd(:,i));
+plot(timeb,mbt_mind(:,i));
+plot(timeb,tmbt(:,i),'k');
+datetick('x','mmmyy');grid on;ylim([-200 600]);
+end;
+hold off;
+
+print -depsc2 1.eps
+
+figure(6)
+for i = 1:4;
+subtightplot(4,1,i,0.05,0.05,0.05);
+if(i ==1)
+title('Mean after date')
+end;
+hold on;
+plot(timea,mat_maxd(:,i));
+plot(timea,mat_mind(:,i));
+plot(timea,tmat(:,i),'k');
+datetick('x','mmmyy');grid on;ylim([-200 600]);
+end;
+hold off;
+print -depsc2 2.eps
+
+figure(7)
+for i = 1:4;
+subtightplot(4,1,i,0.05,0.05,0.05);
+if(i ==1)
+title('Median after date')
+end;
+hold on;
+plot(timeb,mdbt_maxd(:,i));
+plot(timeb,mdbt_mind(:,i));
+plot(timeb,tmdbt(:,i),'k');
+datetick('x','mmmyy');grid on;ylim([-200 600]);
+end;
+hold off;
+print -depsc2 3.eps
+
+figure(8)
+for i = 1:4;
+subtightplot(4,1,i,0.05,0.05,0.05);
+if(i ==1)
+title('Median after date')
+end;
+hold on;
+plot(timea,mdat_maxd(:,i));
+plot(timea,mdat_mind(:,i));
+plot(timea,tmdat(:,i),'k');
+datetick('x','mmmyy');grid on;ylim([-200 600]);
+end;
+hold off;
+print -depsc2 4.eps
+%-.-.-.-.-.-.-.-.-.-.-.-.-.-.- PLOTS -.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-
+
+
+
+%-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-

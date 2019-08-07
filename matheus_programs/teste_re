@@ -1,0 +1,4 @@
+for i in `seq 100 20 360` 
+do
+cp all_p_isot16depth.m ~/Dropbox/Mestrado/matheus_programs/$i/.
+done
